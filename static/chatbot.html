@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Arhitekt Chatbot</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .chat-container {
+      background: #fff;
+      width: 80%;
+      max-width: 1100px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      display: flex;
+      border-radius: 12px;
+      overflow: hidden;
+      flex-direction: column;
+      height: 90vh;
+      max-height: 90vh;
+    }
+    .chat-header {
+      flex: 0 0 60px;
+      display: flex;
+      align-items: center;
+      background-color: #00BED2;
+      padding: 15px;
+      box-sizing: border-box;
+    }
+    .chat-header p{
+      display: grid;
+      align-items: end;
+    }
+    .chat-header img {
+      height: 40px;
+      margin-right: 15px;
+    }
+    .chat-header h2 {
+      color: white;
+      font-size: 22px;
+      margin: 0;
+    }
+    #chatbox {
+      flex: 1 1 auto;
+      padding: 15px;
+      overflow-y: auto;
+      background: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+    .message {
+      display: flex;
+      align-items: flex-start;
+      margin: 10px 0;
+      max-width: 80%;
+      animation: fadeIn 0.3s ease-in;
+    }
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+    .message.bot {
+      align-self: flex-start;
+    }
+    .message .avatar {
+      width: 32px;
+      height: 32px;
+      margin: 0 10px;
+    }
+    .message .bubble {
+      padding: 10px 15px;
+      border-radius: 20px;
+      line-height: 1.4;
+    }
+    .user .bubble {
+      background: #e0f7fa;
+      color: #028395FF;
+    }
+    .bot .bubble {
+      background: rgb(2, 131, 149);
+      color: #ffffff;
+    }
+    .input-area {
+      flex: 0 0 50px;
+      display: flex;
+      border-top: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    #input {
+      flex: 1;
+      padding: 15px;
+      border: none;
+      outline: none;
+      font-size: 16px;
+    }
+    #sendBtn {
+      background: #00BED2;
+      color: white;
+      border: none;
+      padding: 0 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    #sendBtn:hover {
+      background: #009FB0;
+    }
+    .footer {
+      flex: 0 0 50px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 10px 15px;
+      border-top: 1px solid #eee;
+      background: #fafafa;
+      box-sizing: border-box;
+    }
+    .footer img {
+      height: 30px;
+      opacity: 0.8;
+      transition: opacity 0.3s;
+    }
+    .footer img:hover {
+      opacity: 1;
+      cursor: pointer;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">
+      <img src="static/logo.svg" alt="Logo" />
+      <p>gpt-4o</p>
+    </div>
+
+    <div id="chatbox"></div>
+
+    <div class="input-area">
+      <input id="fileInput" type="file" accept=".pdf,.docx,.txt" />
+      <button id="uploadBtn">Učitaj</button>
+
+      <input id="input" type="text" placeholder="Postavite pitanje..." />
+      <button id="sendBtn">Pošalji</button>
+    </div>
+
+    <div class="footer">
+      <img src="static/logo-edih.png" alt="EDIH Partner Logo" />
+    </div>
+  </div>
+
+  <script>
+    // DODANO: globalna sesija za vezu upload chat
+    const SESSION_ID = crypto.randomUUID();
+
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("sendBtn");
+    const chatbox = document.getElementById("chatbox");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const fileInput = document.getElementById("fileInput");
+
+    // DODANO: "Bot piše..." indikator
+    let typingMsg = null;
+    let typingInterval = null;
+    function showTyping() {
+      typingMsg = document.createElement("div");
+      typingMsg.className = "message bot";
+
+      const avatar = document.createElement("img");
+      avatar.className = "avatar";
+      avatar.src = "static/edit-chatbot.png";
+      avatar.alt = "bot";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerText = "Bot piše";
+
+      typingMsg.appendChild(avatar);
+      typingMsg.appendChild(bubble);
+      chatbox.appendChild(typingMsg);
+      chatbox.scrollTop = chatbox.scrollHeight;
+
+      let dots = 0;
+      typingInterval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        bubble.innerText = "Bot piše" + ".".repeat(dots);
+      }, 500);
+    }
+    function hideTyping() {
+      if (typingMsg) {
+        clearInterval(typingInterval);
+        chatbox.removeChild(typingMsg);
+        typingMsg = null;
+      }
+    }
+
+    // Funkcija za ispis poruka (prihvaća string ili DOM element)
+    function appendMessage(sender, content) {
+      const msg = document.createElement("div");
+      msg.className = "message " + sender;
+
+      const avatar = document.createElement("img");
+      avatar.className = "avatar";
+      avatar.src = sender === "user" ? "static/user-icon.png" : "static/edit-chatbot.png";
+      avatar.alt = sender;
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      if (typeof content === "string") {
+        bubble.innerHTML = content;
+      } else {
+        bubble.appendChild(content);
+      }
+
+      msg.appendChild(avatar);
+      msg.appendChild(bubble);
+      chatbox.appendChild(msg);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    // Slanje poruke
+    async function sendMessage() {
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      appendMessage("user", message);
+
+      // DODANO: ručni trigger detaljnog odgovora ("da", "detaljno", ...)
+      const lower = message.toLowerCase();
+      if (["da", "detaljno", "objasni više", "objasni", "više"].includes(lower)) {
+        if (window.lastDetailed) {
+          appendMessage("bot", window.lastDetailed);
+          return;
+        }
+      }
+
+      // DODANO: prikaži indikator tipkanja
+      showTyping();
+
+      const res = await fetch("http://localhost:5000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: message,
+          session_id: SESSION_ID, // DODANO: veže razgovor s učitanim dokumentom
+        }),
+      });
+
+      const data = await res.json();
+
+      // DODANO: sakrij indikator tipkanja kada stigne odgovor
+      hideTyping();
+
+      if (data.short && data.detailed) {
+        // DODANO: zapamti zadnji detaljni odgovor (za "da" u sljedećoj poruci)
+        window.lastDetailed = data.detailed;
+
+        // Kratki + detaljni prikaz s gumbom (bez gubitka event listenera)
+        const container = document.createElement("div");
+
+        const textDiv = document.createElement("div");
+        textDiv.className = "text-part";
+        textDiv.innerHTML = data.short;
+        container.appendChild(textDiv);
+
+        const hint = document.createElement("p");
+        hint.style.marginTop = "6px";
+        hint.style.fontSize = "14px";
+        hint.style.opacity = "0.8";
+        hint.innerText = "Želite li detaljnije objašnjenje? Kliknite gumb ili napišite 'da'.";
+        container.appendChild(hint);
+
+        const button = document.createElement("button");
+        button.textContent = "Prikaži detaljno";
+        button.style.marginTop = "8px";
+        button.style.padding = "6px 12px";
+        button.style.borderRadius = "8px";
+        button.style.border = "none";
+        button.style.background = "#00BED2";
+        button.style.color = "white";
+        button.style.cursor = "pointer";
+
+        let expanded = false;
+        button.addEventListener("click", () => {
+          expanded = !expanded;
+          textDiv.innerHTML = expanded ? data.detailed : data.short;
+          button.textContent = expanded ? "Sažmi" : "Prikaži detaljno";
+        });
+
+        container.appendChild(button);
+        appendMessage("bot", container);
+      } else {
+        appendMessage("bot", data.reply);
+      }
+    }
+
+    // Upload datoteke (ostaje kao što je bilo)
+    uploadBtn.onclick = async () => {
+      const f = fileInput.files[0];
+      if (!f) {
+        alert("Odaberi datoteku!");
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("session_id", SESSION_ID);
+
+      try {
+        const res = await fetch("http://localhost:5000/upload", {
+          method: "POST",
+          body: fd,
+        });
+
+        const data = await res.json();
+
+        if (data.ok) {
+          alert(`Učitano ${f.name} (${data.chars} znakova).`);
+        } else {
+          alert(`Greška: ${data.error}`);
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+        alert("Dogodila se greška pri slanju datoteke.");
+      }
+    };
+
+    // Enter šalje poruku
+    input.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+    sendBtn.addEventListener("click", sendMessage);
+  </script>
+</body>
+</html>
