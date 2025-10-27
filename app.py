@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # ---------------------------------------------
 # Inicijalizacija
 # ---------------------------------------------
-load_dotenv("../.env")
+load_dotenv("env")
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
